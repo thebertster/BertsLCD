@@ -273,21 +273,44 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_WTSSESSION_CHANGE:
 		switch (wParam)
 		{
-		case WTS_CONSOLE_CONNECT:
-			if (!lcdInitialised) lcdInitialised = InitialiseLCD();
-			timer = SetTimer(hWnd, ID_1SECOND, TIMER_RES, NULL);
-			break;
 		case WTS_CONSOLE_DISCONNECT:
-			KillTimer(hWnd, ID_1SECOND);
-			timer = 0;
+			if (timer != 0)
+			{
+				KillTimer(hWnd, ID_1SECOND);
+				timer = 0;
+			}
 			if (lcdInitialised)
 			{
 				lcdInitialised = FALSE;
 				LogiLcdShutdown();
 			}
 			break;
+		case WTS_CONSOLE_CONNECT:
+			if (!lcdInitialised) lcdInitialised = InitialiseLCD();
+			if (timer ==0) timer = SetTimer(hWnd, ID_1SECOND, TIMER_RES, NULL);
+			break;
 		}
 		break;
+	case WM_POWERBROADCAST:
+		switch (wParam)
+		{
+		case PBT_APMSUSPEND:
+			if (timer != 0)
+			{
+				KillTimer(hWnd, ID_1SECOND);
+				timer = 0;
+			}
+			if (lcdInitialised)
+			{
+				lcdInitialised = FALSE;
+				LogiLcdShutdown();
+			}
+			return TRUE;
+		case PBT_APMRESUMEAUTOMATIC:
+			if (!lcdInitialised) lcdInitialised = InitialiseLCD();
+			if (timer == 0) timer = SetTimer(hWnd, ID_1SECOND, TIMER_RES, NULL);
+			return TRUE;
+		}
 	case WM_PAINT:
 		hdc = BeginPaint(hWnd, &ps);
 		// TODO: Add any drawing code here...
@@ -298,7 +321,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		PostQuitMessage(0);
 		break;
 	case WM_TIMER:
-		DoTick();
+		if (timer != 0) DoTick();
 		break;
 	case WM_TRAYICON:
 		switch (lParam)
