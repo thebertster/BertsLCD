@@ -16,7 +16,6 @@
 #define LOGI_LCD_TYPE_MONO    (0x00000001)
 #define LOGI_LCD_TYPE_COLOR   (0x00000002)
 
-
 #define LOGI_LCD_MONO_BUTTON_0 (0x00000001)
 #define LOGI_LCD_MONO_BUTTON_1 (0x00000002)
 #define LOGI_LCD_MONO_BUTTON_2 (0x00000004)
@@ -78,6 +77,8 @@ int                 resetCounter = 0;
 int					oldProgress = -1;
 HWND				hWndMM = NULL;
 
+BOOL				isDisconnected = FALSE;
+
 #define WM_TRAYICON WM_APP
 #define ID_NOTIFYICON 1
 #define ID_1SECOND 101
@@ -98,9 +99,9 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 	MSG msg;
 	HACCEL hAccelTable;
 	HKEY hLibKey = NULL;
-	TCHAR szLogitechLibKey[MAX_LOADSTRING]=TEXT("");
-	TCHAR szLogitechLibPath[MAX_PATH];
-	DWORD logitechLibPathLen = MAX_PATH;
+	TCHAR szLogitechLibKey[MAX_LOADSTRING] = TEXT("");
+	TCHAR szLogitechLibPath[MAX_PATH + 1];
+	DWORD logitechLibPathLen = MAX_PATH + 1;
 	DWORD regKeyType;
 	BOOL gotLogitechLibPath = FALSE;
 
@@ -284,33 +285,51 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				lcdInitialised = FALSE;
 				LogiLcdShutdown();
 			}
+			isDisconnected = TRUE;
 			break;
 		case WTS_CONSOLE_CONNECT:
-			if (!lcdInitialised) lcdInitialised = InitialiseLCD();
-			if (timer ==0) timer = SetTimer(hWnd, ID_1SECOND, TIMER_RES, NULL);
+			if (!lcdInitialised)
+			{
+				lcdInitialised = InitialiseLCD();
+			}
+			if (timer == 0)
+			{
+				timer = SetTimer(hWnd, ID_1SECOND, TIMER_RES, NULL);
+			}
+			isDisconnected = FALSE;
 			break;
 		}
 		break;
 	case WM_POWERBROADCAST:
-		switch (wParam)
+		if (!isDisconnected)
 		{
-		case PBT_APMSUSPEND:
-			if (timer != 0)
+			switch (wParam)
 			{
-				KillTimer(hWnd, ID_1SECOND);
-				timer = 0;
+			case PBT_APMSUSPEND:
+				if (timer != 0)
+				{
+					KillTimer(hWnd, ID_1SECOND);
+					timer = 0;
+				}
+				if (lcdInitialised)
+				{
+					lcdInitialised = FALSE;
+					LogiLcdShutdown();
+				}
+				return TRUE;
+			case PBT_APMRESUMEAUTOMATIC:
+				if (!lcdInitialised)
+				{
+					lcdInitialised = InitialiseLCD();
+				}
+				if (timer == 0)
+				{
+					timer = SetTimer(hWnd, ID_1SECOND, TIMER_RES, NULL);
+				}
+				return TRUE;
 			}
-			if (lcdInitialised)
-			{
-				lcdInitialised = FALSE;
-				LogiLcdShutdown();
-			}
-			return TRUE;
-		case PBT_APMRESUMEAUTOMATIC:
-			if (!lcdInitialised) lcdInitialised = InitialiseLCD();
-			if (timer == 0) timer = SetTimer(hWnd, ID_1SECOND, TIMER_RES, NULL);
-			return TRUE;
 		}
+		return FALSE;
 	case WM_PAINT:
 		hdc = BeginPaint(hWnd, &ps);
 		// TODO: Add any drawing code here...
